@@ -21,7 +21,7 @@ I principali passi per la risoluzione consistono in:
 
 Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare *nmap*, tramite cui, con opzioni appropriate, e possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
 <p align="center">
-<img src="img/nmap2.png" width=80%/>
+<img src="images/nmap2.png" width=80%/>
 </p>
 
 La porta 80 della macchina obiettivo risulta aperta per un web server. È possibile visitare il sito web ospitato, che risulta essere adibito alla vendita di prodotti medici. 
@@ -55,7 +55,7 @@ Poco dopo l'injection, dal log del server è visibile la richiesta per l'immagin
 Si può notare che questa injection è categorizzabile come remota, senza autenticazione ma che richiede necessariamente un'azione da parte di un utente per la realizzazione effettiva.
 
 <p align="center">
-<img src="img/cookie1.png" width=80%/>
+<img src="images/cookie1.png" width=80%/>
 </p>
 
 Per capire dove sfruttare il cookie di sessione è opportuno scansionare le directory del web server in cerca di aree riservate agli amministratori. Per fare ciò si può usare dirb, un fuzzing tool che, dato un dizionario di nomi di file e directory comuni, invia richieste al server con tali nomi in modo da trovare risorse non puntate direttamente da dei link.
@@ -65,7 +65,7 @@ Tra le varie directory trovate, risalta quella ```/_admin```. Visitandola, si ap
 Non essendo in possesso di credenziali, si può impersonare l'amministratore del webserver usando il cookie di sessione ottenuto al passo precedente. Per intercettare e modificare la richiesta in uscita dal browser è stato scelto di usare il proxy burp.
 
 <p align="center">
-<img src="img/burp1.png" width=70%/>
+<img src="images/burp1.png" width=70%/>
 </p>
 
 ## Reverse shell
@@ -121,7 +121,7 @@ Questa injection è differente da quella al passo precedente, in quanto, pur ess
 A questo punto, su Metasploit viene aperta una sessione tramite cui si può interagire con la macchina obiettivo. 
 
 <p align="center">
-<img src="img/meterpreter2.png" width=80%/>
+<img src="images/meterpreter2.png" width=80%/>
 </p>
 
 Per ottenere una shell interattiva si usano i seguenti comandi: 
@@ -140,13 +140,13 @@ Con il comando ```whoami```, si può vedere che si sta impersonando l'account di
 Nella stessa directory è presente una cartella settings, contenente il file ```config.php```. Al suo interno ci sono le infomazioni del database per la gestione degli ordini del negozio, denominato ```orders```, tra cui anche la password in chiaro per accedervi. 
 
 <p align="center">
-<img src="img/config.png" width=30%/>
+<img src="images/config.png" width=30%/>
 </p>
 
 Nel database ci sono due tabelle, ```orders``` e ```users```. La seconda tabella contiene le credenziali di due account.
 
 <p align="center">
-<img src="img/users.png" width=60%/>
+<img src="images/users.png" width=60%/>
 </p>
 
 Le password sono salvate come hash (in formato bcrypt). Può essere utile copiarle in un file sulla macchina attaccante per effettuarne il cracking in un secondo momento.
@@ -200,11 +200,11 @@ find / -perm -u=s -type f 2>/dev/null
 Nell'output compare l'eseguibile ```/usr/bin/backup```. Per vederne il contenuto si può usare il comando ```strings```, che restituisce stringhe di caratteri da file non di testo. Si vede che ```backup.sh``` viene chiamato da ```backup```.
 
 <p align="center">
-<img src="img/strings1.png" width=50%/>
+<img src="images/strings1.png" width=50%/>
 </p>
 
  Ora basta eseguirlo per ottenere una shell con privilegi root. Accedendo alla directory ```/root``` si ottiene il terzo flag.
 
 <p align="center">
-<img src="img/root1.png" width=50%/>
+<img src="images/root1.png" width=50%/>
 </p>
