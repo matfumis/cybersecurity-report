@@ -2,7 +2,6 @@
 </br>
 
 ## Introduzione
-<p>&nbsp;</p>
 
 La demo consiste nella risoluzione di una challenge Catch The Flag (CTF) di [Vulnhub](https://www.vulnhub.com/entry/credit-card-scammers-1,479/).
 
@@ -22,7 +21,7 @@ I principali passi per la risoluzione consistono in:
 
 
 ## Ricognizione ed enumerazione
-<p>&nbsp;</p>
+
 
 Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare [nmap](https://www.kali.org/tools/nmap/), tramite cui, con opzioni appropriate, è possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
 <p align="center">
@@ -34,7 +33,7 @@ La porta 80 della macchina obiettivo risulta aperta per un web server. È possib
 </br>
 
 ## Session hijacking
-<p>&nbsp;</p>
+
 
 Sul sito, selezionando uno dei prodotti sul catalogo, è possibile compilare dei form per effettuarne l'ordine. Tali form potrebbero essere vulnerabili ad attacchi di tipo Cross-Site Scripting (XSS), che di solito consistono nell'injection di codice tramite input da webapp il cui contenuto non viene opportunamente validato o sanato: il codice malevolo viene inviato a un utente lato server, che lo mette ignaramente in esecuzione.
 
@@ -79,7 +78,7 @@ Non essendo in possesso di credenziali, si può impersonare l'amministratore del
 </br>
 
 ## Reverse shell
-<p>&nbsp;</p>
+
 
 Valorizzando opportunamente il campo ```Cookie``` e inoltrando la richiesta, si accede al pannello amministrativo, in cui sono visibili gli ordini di altri clienti. In un submenu è presente un link denominato ```database admin```, che porta a una pagina interattiva tramite cui interagire con il database del negozio. Il form permette solamente di inserire o rimuovere dati, non di interrogare il database. È importante notare che l'interazione con il database è diretta, non mediata da prepared statement e stored procedures, il che rende il webserver potenzialmente vulnerabile a SQL injection.
 
@@ -147,7 +146,6 @@ Meterpreter permetterebbe di interagire con la macchina obiettivo senza generare
 </br>
 
 ## Privilege Escalation
-<p>&nbsp;</p>
 
 Con il comando ```whoami```, si può vedere che si sta impersonando l'account di nome apache. Inoltre nella directory corrente, ```/var/www/html```, si trova il primo flag. 
 
