@@ -58,7 +58,7 @@ python -m http.server 80
 
 Poco dopo l'injection, dal log del server è visibile la richiesta per l'immagine dello script, in cui è esposto il cookie di sessione dell'amministratore. 
 
-Si può notare che questa injection è categorizzabile come remota, senza autenticazione ma che per la realizzazione effettiva richiede un'azione da parte di un utente lato webserver.
+Si può notare che questa injection è categorizzabile come remota, senza autenticazione ma che per funzionare richiede un'azione da parte di un utente lato webserver.
 
 <p align="center">
 <img src="images/cookie1.png" width=80%/>
