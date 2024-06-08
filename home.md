@@ -1,9 +1,9 @@
-# Report Cybersecurity
+# Report Cybersecurity - Vulnhub CTF Challenge 
 </br>
 
 ## Introduzione
 
-La demo consiste nella risoluzione di una challenge Catch The Flag (CTF) di [Vulnhub](https://www.vulnhub.com/entry/credit-card-scammers-1,479/).
+La demo consiste nella risoluzione di una challenge Catch The Flag (CTF) di [Vulnhub](https://www.vulnhub.com/entry/credit-card-scammers-1,479/), dal titolo "Credit Card Scammers: 1".
 
 L'obiettivo è quello di ottenere privilegi root su una macchina virtuale Linux preconfigurata, cercando 3 flag durante il percorso. Lo scenario è quello di una rete popolata da sole due macchine, quella attaccante (Kali Linux) e quella obiettivo. L'attaccante può comunicare direttamente con l'obiettivo e ha a disposizione software utili per sfruttarne le vulnerabilità.
 
