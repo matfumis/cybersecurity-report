@@ -23,7 +23,7 @@ I principali passi per la risoluzione consistono in:
 
 ## Ricognizione ed enumerazione
 
-Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare *nmap*, tramite cui, con opzioni appropriate, è possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
+Per prima cosa è necessario scansionare rete in modo da identificare l'indirizzo ip della macchina obiettivo. Tra i vari software disponibili, è stato scelto di utilizzare [nmap](https://www.kali.org/tools/nmap/), tramite cui, con opzioni appropriate, è possibile rilvare direttamente anche i servizi disponibili sui nodi trovati.
 <p align="center">
 <img src="images/nmap2.png" width=80%/>
 </p>
@@ -64,11 +64,11 @@ Si può notare che questa injection è categorizzabile come remota, senza autent
 <img src="images/cookie1.png" width=80%/>
 </p>
 
-Per capire dove sfruttare il cookie di sessione è opportuno scansionare le directory del web server in cerca di aree riservate agli amministratori. Per fare ciò si può usare dirb, un fuzzing tool che, dato un dizionario di nomi di file e directory comuni, invia richieste al server con tali nomi in modo da trovare risorse non puntate direttamente da dei link.
+Per capire dove sfruttare il cookie di sessione è opportuno scansionare le directory del web server in cerca di aree riservate agli amministratori. Per fare ciò si può usare [dirb](https://www.kali.org/tools/dirb/), un fuzzing tool che, dato un dizionario di nomi di file e directory comuni, invia richieste al server con tali nomi in modo da trovare risorse non puntate direttamente da dei link.
 
 Tra i le varie directory trovate, risalta quella ```/_admin```. Visitandola, si apre una pagina con dei link a delle subdirectory. Visitando il link alla directory ```dist/```, si accede a un pannello di login per l'area amministrativa. 
 
-Non essendo in possesso di credenziali, si può impersonare l'amministratore del webserver usando il cookie di sessione ottenuto al passo precedente. Per intercettare e modificare la richiesta in uscita dal browser è stato scelto di usare il proxy burp.
+Non essendo in possesso di credenziali, si può impersonare l'amministratore del webserver usando il cookie di sessione ottenuto al passo precedente. Per intercettare e modificare la richiesta in uscita dal browser è stato scelto di usare il proxy [burp](https://www.kali.org/tools/burpsuite/).
 
 <p align="center">
 <img src="images/burp1.png" width=70%/>
@@ -90,7 +90,7 @@ Il comando ```SELECT``` genera come output il codice nel payload, ```INTO OUTFIL
 
 Il fatto che la pagina generata dal file ```phpinfo.php``` risulta visitabile indica che l'injection è andata a buon fine.
 
-Per sfruttare questa vulnerabilità al meglio, il payload php della SQL injection può essere sostituito con uno che genera una reverse shell sul webserver, in modo da ottenere accesso alla macchina obiettivo. Tale payload può essere facilmente generato usando meterpreter, parte del framework Metasploit.
+Per sfruttare questa vulnerabilità al meglio, il payload php della SQL injection può essere sostituito con uno che genera una reverse shell sul webserver, in modo da ottenere accesso alla macchina obiettivo. Tale payload può essere facilmente generato usando meterpreter, parte del framework [Metasploit](https://www.kali.org/tools/metasploit-framework/).
 
 I comandi e parametri per la creazione del payload sono i seguenti:
 
@@ -163,7 +163,7 @@ Le password sono salvate come hash (in formato bcrypt). Può essere utile copiar
 
 Uscendo dal database e navigando alla directory ```/home```, si vede che è presente la home anche di un altro account, *moneygrabber*, il cui nome assomiglia a uno dei due trovati nel database, *m0n3y6r4bb3r*. 
 
-Vista la possibilità che password di account locale e di utente del database coincidano, si procede con il cracking della password di m0n3y6r4bb3r. Per fare ciò è stato scelto il tool John the Ripper, prenistallato nella macchina attaccante. Il comando è il seguente: 
+Vista la possibilità che password di account locale e di utente del database coincidano, si procede con il cracking della password di m0n3y6r4bb3r. Per fare ciò è stato scelto il tool [John the Ripper](https://www.kali.org/tools/john/), prenistallato nella macchina attaccante. Il comando è il seguente: 
 
 ```bash
 john -format=bcrypt --wordlist=/usr/share/wordlists/rockyou.txt /home/matteo/Downloads/tocrack.txt
