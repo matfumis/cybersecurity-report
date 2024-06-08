@@ -213,7 +213,9 @@ Nell'output compare l'eseguibile ```/usr/bin/backup```. Per stamparne il contenu
 <img src="images/strings1.png" width=50%/>
 </p>
 
- Ora basta eseguire ```backup``` per ottenere una shell con privilegi root. Accedendo alla directory ```/root``` si ottiene il terzo flag.
+ Dunque si ha il controllo di un eseguibile che gira con privilegi elevati e che di fatto genera una shell. 
+ 
+ Basta eseguire ```backup``` per ottenere la shell con privilegi root. Accedendo alla directory ```/root``` si ottiene il terzo flag.
 
 <p align="center">
 <img src="images/root1.png" width=50%/>
