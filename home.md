@@ -207,7 +207,7 @@ Si procede dunque trovando tutti gli eseguibili con impostato il bit SUID per po
 find / -perm -u=s -type f 2>/dev/null
 ```
 
-Nell'output compare l'eseguibile ```/usr/bin/backup```. Per vederne il contenuto si può usare il comando ```strings```, che restituisce stringhe di caratteri da file non di testo. Si vede che ```backup.sh``` viene chiamato in ```backup```.
+Nell'output compare l'eseguibile ```/usr/bin/backup```. Per stamparne il contenuto si può usare il comando ```strings```, che restituisce i caratteri stampabili di un file. Si vede che in ```backup``` viene chiamato ```backup.sh```.
 
 <p align="center">
 <img src="images/strings1.png" width=50%/>
